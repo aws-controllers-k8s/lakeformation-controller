@@ -1,0 +1,14 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  namespace: ack-system
+  name: lakeformation-leader-election-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: lakeformation-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: ack-lakeformation-controller
+  namespace: ack-system
