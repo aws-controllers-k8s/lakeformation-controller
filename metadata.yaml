@@ -1,8 +1,8 @@
 service:
-  full_name:
-  short_name:
-  link:
-  documentation:
+  full_name: AWS Lake Formation
+  short_name: Lake Formation
+  link: https://aws.amazon.com/lake-formation/
+  documentation: https://docs.aws.amazon.com/lake-formation/latest/dg/what-is-lake-formation.html
 api_versions:
   - api_version: v1alpha1
     status: available
