@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ack-lakeformation-controller-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ack-lakeformation-controller
+subjects:
+- kind: ServiceAccount
+  name: ack-lakeformation-controller
+  namespace: ack-system

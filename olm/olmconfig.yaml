@@ -1,0 +1,40 @@
+# This configuration is a placeholder. Replace any values with relevant values for your
+# service controller project.
+---
+annotations:
+  capabilityLevel: Basic Install
+  shortDescription: AWS LakeFormation controller is a service controller for managing LakeFormation resources
+    in Kubernetes
+displayName: AWS Controllers for Kubernetes - Amazon LakeFormation
+description: |-
+  Manage Amazon LakeFormation resources in AWS from within your Kubernetes cluster.
+
+
+  **About Amazon LakeFormation**
+
+
+  AWS Lake Formation helps you centrally govern, secure, and globally share data for analytics and machine learning. With Lake Formation, you can manage fine-grained access control for your data lake data on Amazon Simple Storage Service (Amazon S3) and its metadata in AWS Glue Data Catalog.
+
+
+  **About the AWS Controllers for Kubernetes**
+
+
+  This controller is a component of the [AWS Controller for Kubernetes](https://github.com/aws/aws-controllers-k8s)
+  project. This project is currently in **developer preview**.
+
+
+  **Pre-Installation Steps**
+
+
+  Please follow the following link: [Red Hat OpenShift](https://aws-controllers-k8s.github.io/community/docs/user-docs/openshift/)
+samples:
+- kind: ExampleCustomKind
+  spec: '{}'
+- kind: SecondExampleCustomKind
+  spec: '{}'
+maintainers:
+- name: "lakeformation maintainer team"
+  email: "ack-maintainers@amazon.com"
+links:
+- name: Amazon LakeFormation Developer Resources
+  url: https://docs.aws.amazon.com/lake-formation/latest/dg/what-is-lake-formation.html
