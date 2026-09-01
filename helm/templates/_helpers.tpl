@@ -70,6 +70,26 @@ rules:
   - list
   - watch
 - apiGroups:
+  - lakeformation.services.k8s.aws
+  resources:
+  - databasepermissions
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - lakeformation.services.k8s.aws
+  resources:
+  - databasepermissions/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - services.k8s.aws
   resources:
   - fieldexports
