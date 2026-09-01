@@ -16,6 +16,7 @@ rules:
 - apiGroups:
   - lakeformation.services.k8s.aws
   resources:
+  - databasepermissions
   verbs:
   - get
   - list

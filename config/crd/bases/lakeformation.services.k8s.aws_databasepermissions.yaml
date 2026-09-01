@@ -1,0 +1,186 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: databasepermissions.lakeformation.services.k8s.aws
+spec:
+  group: lakeformation.services.k8s.aws
+  names:
+    kind: DatabasePermission
+    listKind: DatabasePermissionList
+    plural: databasepermissions
+    singular: databasepermission
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: DatabasePermission is the Schema for the DatabasePermissions
+          API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: DatabasePermissionSpec defines the desired state of DatabasePermission.
+            properties:
+              catalogID:
+                description: |-
+                  The identifier for the Data Catalog. By default, the account ID. The Data
+                  Catalog is the persistent metadata store. It contains database definitions,
+                  table definitions, and other control information to manage your Lake Formation
+                  environment.
+
+                  Regex Pattern: `^[\u0020-\uD7FF\uE000-\uFFFD\uD800\uDC00-\uDBFF\uDFFF\t]*$`
+                type: string
+              condition:
+                description: |-
+                  A Lake Formation condition, which applies to permissions and opt-ins that
+                  contain an expression.
+                properties:
+                  expression:
+                    type: string
+                type: object
+              permissions:
+                description: |-
+                  The permissions granted to the principal on the resource. Lake Formation
+                  defines privileges to grant and revoke access to metadata in the Data Catalog
+                  and data organized in underlying data storage such as Amazon S3. Lake Formation
+                  requires that each principal be authorized to perform a specific task on
+                  Lake Formation resources.
+                items:
+                  type: string
+                type: array
+              permissionsWithGrantOption:
+                description: |-
+                  Indicates a list of the granted permissions that the principal may pass to
+                  other users. These permissions may only be a subset of the permissions granted
+                  in the Privileges.
+                items:
+                  type: string
+                type: array
+              principal:
+                description: |-
+                  The principal to be granted the permissions on the resource. Supported principals
+                  are IAM users or IAM roles, and they are defined by their principal type
+                  and their ARN.
+
+                  Note that if you define a resource with a particular ARN, then later delete,
+                  and recreate a resource with that same ARN, the resource maintains the permissions
+                  already granted.
+                properties:
+                  dataLakePrincipalIdentifier:
+                    type: string
+                type: object
+              resource:
+                description: |-
+                  The resource to which permissions are to be granted. Resources in Lake Formation
+                  are the Data Catalog, databases, and tables.
+                properties:
+                  database:
+                    description: A structure for the database object.
+                    properties:
+                      catalogID:
+                        type: string
+                      name:
+                        type: string
+                    type: object
+                type: object
+            required:
+            - permissions
+            - principal
+            - resource
+            type: object
+          status:
+            description: DatabasePermissionStatus defines the observed state of DatabasePermission
+            properties:
+              ackResourceMetadata:
+                description: |-
+                  All CRs managed by ACK have a common `Status.ACKResourceMetadata` member
+                  that is used to contain resource sync state, account ownership,
+                  constructed ARN for the resource
+                properties:
+                  arn:
+                    description: |-
+                      ARN is the Amazon Resource Name for the resource. This is a
+                      globally-unique identifier and is set only by the ACK service controller
+                      once the controller has orchestrated the creation of the resource OR
+                      when it has verified that an "adopted" resource (a resource where the
+                      ARN annotation was set by the Kubernetes user on the CR) exists and
+                      matches the supplied CR's Spec field values.
+                      https://github.com/aws/aws-controllers-k8s/issues/270
+                    type: string
+                  ownerAccountID:
+                    description: |-
+                      OwnerAccountID is the AWS Account ID of the account that owns the
+                      backend AWS service API resource.
+                    type: string
+                  partition:
+                    description: Partition is the AWS partition in which the resource
+                      exists or will exist
+                    type: string
+                  region:
+                    description: Region is the AWS region in which the resource exists
+                      or will exist.
+                    type: string
+                required:
+                - ownerAccountID
+                - region
+                type: object
+              conditions:
+                description: |-
+                  All CRs managed by ACK have a common `Status.Conditions` member that
+                  contains a collection of `ackv1alpha1.Condition` objects that describe
+                  the various terminal states of the CR and its backend AWS service API
+                  resource
+                items:
+                  description: |-
+                    Condition is the common struct used by all CRDs managed by ACK service
+                    controllers to indicate terminal states  of the CR and its backend AWS
+                    service API resource
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned from one status
+                        to another.
+                      format: date-time
+                      type: string
+                    message:
+                      description: A human readable message indicating details about
+                        the transition.
+                      type: string
+                    reason:
+                      description: The reason for the condition's last transition.
+                      type: string
+                    status:
+                      description: Status of the condition, one of True, False, Unknown.
+                      type: string
+                    type:
+                      description: Type is the type of the Condition
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

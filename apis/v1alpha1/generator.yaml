@@ -5,3 +5,39 @@ ignore:
       - LFTagExpression
       - LakeFormationIdentityCenterConfiguration
       - LakeFormationOptIn
+  field_paths:
+      - Resource.Catalog
+      - Resource.Table
+      - Resource.TableWithColumns
+      - Resource.DataLocation
+      - Resource.DataCellsFilter
+      - Resource.LFTag
+      - Resource.LFTagPolicy
+      - Resource.LFTagExpression
+      - ListPermissionsInput.Principal
+      - ListPermissionsInput.Resource
+operations:
+  GrantPermissions:
+    operation_type:
+      - Create
+    resource_name: DatabasePermission
+  RevokePermissions:
+    operation_type:
+      - Delete
+    resource_name: DatabasePermission
+  ListPermissions:
+    operation_type:
+      - List
+    resource_name: DatabasePermission
+resources:
+  DatabasePermission:
+    tags:
+      ignore: true
+    fields:
+      CatalogID:
+        is_primary_key: true
+    hooks:
+      sdk_read_many_post_build_request:
+        template_path: hooks/database_permission/sdk_read_many_post_build_request.go.tpl
+      sdk_read_many_post_set_output:
+        template_path: hooks/database_permission/sdk_read_many_post_set_output.go.tpl

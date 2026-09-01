@@ -41,6 +41,8 @@ import (
 	svctypes "github.com/aws-controllers-k8s/lakeformation-controller/apis/v1alpha1"
 	svcresource "github.com/aws-controllers-k8s/lakeformation-controller/pkg/resource"
 
+	_ "github.com/aws-controllers-k8s/lakeformation-controller/pkg/resource/database_permission"
+
 	"github.com/aws-controllers-k8s/lakeformation-controller/pkg/version"
 )
 

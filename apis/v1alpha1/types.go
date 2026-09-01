@@ -25,3 +25,191 @@ var (
 	_ = &metav1.Time{}
 	_ = ackv1alpha1.AWSAccountID("")
 )
+
+// A permission to a resource granted by batch operation to the principal.
+type BatchPermissionsRequestEntry struct {
+	// A Lake Formation condition, which applies to permissions and opt-ins that
+	// contain an expression.
+	Condition                  *Condition `json:"condition,omitempty"`
+	Permissions                []*string  `json:"permissions,omitempty"`
+	PermissionsWithGrantOption []*string  `json:"permissionsWithGrantOption,omitempty"`
+	// The Lake Formation principal. Supported principals are IAM users or IAM roles.
+	Principal *DataLakePrincipal `json:"principal,omitempty"`
+	// A structure for the resource.
+	Resource *Resource `json:"resource,omitempty"`
+}
+
+// A structure for the catalog object.
+type CatalogResource struct {
+	ID *string `json:"id,omitempty"`
+}
+
+// A structure containing the name of a column resource and the LF-tags attached
+// to it.
+type ColumnLFTag struct {
+	Name *string `json:"name,omitempty"`
+}
+
+// A Lake Formation condition, which applies to permissions and opt-ins that
+// contain an expression.
+type Condition struct {
+	Expression *string `json:"expression,omitempty"`
+}
+
+// A structure that describes certain columns on certain rows.
+type DataCellsFilter struct {
+	DatabaseName   *string `json:"databaseName,omitempty"`
+	Name           *string `json:"name,omitempty"`
+	TableCatalogID *string `json:"tableCatalogID,omitempty"`
+	TableName      *string `json:"tableName,omitempty"`
+}
+
+// A structure for a data cells filter resource.
+type DataCellsFilterResource struct {
+	DatabaseName   *string `json:"databaseName,omitempty"`
+	Name           *string `json:"name,omitempty"`
+	TableCatalogID *string `json:"tableCatalogID,omitempty"`
+	TableName      *string `json:"tableName,omitempty"`
+}
+
+// The Lake Formation principal. Supported principals are IAM users or IAM roles.
+type DataLakePrincipal struct {
+	DataLakePrincipalIdentifier *string `json:"dataLakePrincipalIdentifier,omitempty"`
+}
+
+// A structure for a data location object where permissions are granted or revoked.
+type DataLocationResource struct {
+	CatalogID *string `json:"catalogID,omitempty"`
+}
+
+// A structure for the database object.
+type DatabaseResource struct {
+	CatalogID *string `json:"catalogID,omitempty"`
+	Name      *string `json:"name,omitempty"`
+}
+
+// A structure containing the additional details to be returned in the AdditionalDetails
+// attribute of PrincipalResourcePermissions.
+//
+// If a catalog resource is shared through Resource Access Manager (RAM), then
+// there will exist a corresponding RAM resource share ARN.
+type DetailsMap struct {
+	ResourceShare []*string `json:"resourceShare,omitempty"`
+}
+
+// Contains details about an error.
+type ErrorDetail struct {
+	ErrorCode *string `json:"errorCode,omitempty"`
+}
+
+// A structure consists LF-Tag expression name and catalog ID.
+type LFTagExpression struct {
+	CatalogID *string `json:"catalogID,omitempty"`
+	Name      *string `json:"name,omitempty"`
+}
+
+// A structure containing a LF-Tag expression (keys and values).
+type LFTagExpressionResource struct {
+	CatalogID *string `json:"catalogID,omitempty"`
+	Name      *string `json:"name,omitempty"`
+}
+
+// A structure containing an LF-tag key and values for a resource.
+type LFTagKeyResource struct {
+	CatalogID *string `json:"catalogID,omitempty"`
+	TagKey    *string `json:"tagKey,omitempty"`
+}
+
+// A structure containing an LF-tag key-value pair.
+type LFTagPair struct {
+	CatalogID *string `json:"catalogID,omitempty"`
+}
+
+// A structure containing a list of LF-tag conditions or saved LF-Tag expressions
+// that apply to a resource's LF-tag policy.
+type LFTagPolicyResource struct {
+	CatalogID      *string `json:"catalogID,omitempty"`
+	ExpressionName *string `json:"expressionName,omitempty"`
+}
+
+// A single principal-resource pair that has Lake Formation permissins enforced.
+type LakeFormationOptInsInfo struct {
+	// A Lake Formation condition, which applies to permissions and opt-ins that
+	// contain an expression.
+	Condition     *Condition   `json:"condition,omitempty"`
+	LastModified  *metav1.Time `json:"lastModified,omitempty"`
+	LastUpdatedBy *string      `json:"lastUpdatedBy,omitempty"`
+	// The Lake Formation principal. Supported principals are IAM users or IAM roles.
+	Principal *DataLakePrincipal `json:"principal,omitempty"`
+	// A structure for the resource.
+	Resource *Resource `json:"resource,omitempty"`
+}
+
+// Permissions granted to a principal.
+type PrincipalPermissions struct {
+	Permissions []*string `json:"permissions,omitempty"`
+	// The Lake Formation principal. Supported principals are IAM users or IAM roles.
+	Principal *DataLakePrincipal `json:"principal,omitempty"`
+}
+
+// The permissions granted or revoked on a resource.
+type PrincipalResourcePermissions struct {
+	// A structure containing the additional details to be returned in the AdditionalDetails
+	// attribute of PrincipalResourcePermissions.
+	//
+	// If a catalog resource is shared through Resource Access Manager (RAM), then
+	// there will exist a corresponding RAM resource share ARN.
+	AdditionalDetails *DetailsMap `json:"additionalDetails,omitempty"`
+	// A Lake Formation condition, which applies to permissions and opt-ins that
+	// contain an expression.
+	Condition                  *Condition   `json:"condition,omitempty"`
+	LastUpdated                *metav1.Time `json:"lastUpdated,omitempty"`
+	LastUpdatedBy              *string      `json:"lastUpdatedBy,omitempty"`
+	Permissions                []*string    `json:"permissions,omitempty"`
+	PermissionsWithGrantOption []*string    `json:"permissionsWithGrantOption,omitempty"`
+	// The Lake Formation principal. Supported principals are IAM users or IAM roles.
+	Principal *DataLakePrincipal `json:"principal,omitempty"`
+	// A structure for the resource.
+	Resource *Resource `json:"resource,omitempty"`
+}
+
+// A structure containing information about the query plan.
+type QueryPlanningContext struct {
+	CatalogID *string `json:"catalogID,omitempty"`
+}
+
+// A structure for the resource.
+type Resource struct {
+	// A structure for the database object.
+	Database *DatabaseResource `json:"database,omitempty"`
+}
+
+// A structure containing information about an Lake Formation resource.
+type ResourceInfo struct {
+	LastModified *metav1.Time `json:"lastModified,omitempty"`
+}
+
+// A structure for the table object. A table is a metadata definition that represents
+// your data. You can Grant and Revoke table privileges to a principal.
+type TableResource struct {
+	CatalogID    *string `json:"catalogID,omitempty"`
+	DatabaseName *string `json:"databaseName,omitempty"`
+	Name         *string `json:"name,omitempty"`
+}
+
+// A structure for a table with columns object. This object is only used when
+// granting a SELECT permission.
+//
+// This object must take a value for at least one of ColumnsNames, ColumnsIndexes,
+// or ColumnsWildcard.
+type TableWithColumnsResource struct {
+	CatalogID    *string `json:"catalogID,omitempty"`
+	DatabaseName *string `json:"databaseName,omitempty"`
+	Name         *string `json:"name,omitempty"`
+}
+
+// A structure describing a database resource with LF-tags.
+type TaggedDatabase struct {
+	// A structure for the database object.
+	Database *DatabaseResource `json:"database,omitempty"`
+}
