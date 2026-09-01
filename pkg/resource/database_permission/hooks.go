@@ -17,18 +17,14 @@ import (
 	"context"
 
 	ackcompare "github.com/aws-controllers-k8s/runtime/pkg/compare"
+	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/lakeformation/types"
+
+	svcapitypes "github.com/aws-controllers-k8s/lakeformation-controller/apis/v1alpha1"
+	"github.com/aws-controllers-k8s/lakeformation-controller/pkg/permission"
 )
 
-// customUpdateDatabasePermission handles updates for DatabasePermission
-// resources. Lake Formation has no native update API for grants -
-// GrantPermissions/RevokePermissions are the only mutating operations, both
-// scoped to a (Principal, Resource) tuple. Verified live against the AWS
-// API: repeated Grant calls for the same tuple merge into the same
-// underlying permission record rather than fragmenting into separate
-// records, Revoke only removes the permissions named in that call and
-// leaves the rest of the record untouched, and Permissions and
-// PermissionsWithGrantOption can each be changed independently of the other
-// in a single call (an empty list for one leaves it untouched).
+// customUpdateDatabasePermission delegates to pkg/permission's Grant/Revoke
+// orchestration.
 func (rm *resourceManager) customUpdateDatabasePermission(
 	ctx context.Context,
 	desired *resource,
@@ -42,117 +38,87 @@ func (rm *resourceManager) customUpdateDatabasePermission(
 		delta.DifferentAt("Spec.Resource.Database.CatalogID") ||
 		delta.DifferentAt("Spec.Resource.Database.Name")
 
-	if identityChanged {
-		// A changed Principal or Database is a different AWS-level grant
-		// record entirely, not a mutation of the existing one: revoke
-		// everything under the old tuple, then grant everything under the
-		// new tuple.
-		if err := rm.revokeSubset(ctx, latest, latest.ko.Spec.Permissions, latest.ko.Spec.PermissionsWithGrantOption); err != nil {
-			return nil, err
-		}
-		if err := rm.grantSubset(ctx, desired, desired.ko.Spec.Permissions, desired.ko.Spec.PermissionsWithGrantOption); err != nil {
-			return nil, err
-		}
-		return &resource{ko}, nil
-	}
-
-	// Same tuple: diff each list independently and only touch what actually
-	// changed. This avoids a window with no access during a purely additive
-	// change, which a revoke-then-full-regrant would cause.
-	addedPermissions, removedPermissions := permissionsDiff(desired.ko.Spec.Permissions, latest.ko.Spec.Permissions)
-	addedGrantable, removedGrantable := permissionsDiff(desired.ko.Spec.PermissionsWithGrantOption, latest.ko.Spec.PermissionsWithGrantOption)
-
-	if err := rm.revokeSubset(ctx, desired, removedPermissions, removedGrantable); err != nil {
-		return nil, err
-	}
-	if err := rm.grantSubset(ctx, desired, addedPermissions, addedGrantable); err != nil {
+	err := permission.UpdatePermissions(
+		ctx, rm.sdkapi, rm.metrics, identityChanged,
+		grantTargetFor(latest.ko), grantTargetFor(desired.ko),
+		desired.ko.Spec.Permissions, latest.ko.Spec.Permissions,
+		desired.ko.Spec.PermissionsWithGrantOption, latest.ko.Spec.PermissionsWithGrantOption,
+	)
+	if err != nil {
 		return nil, err
 	}
 
 	return &resource{ko}, nil
 }
 
-// grantSubset calls GrantPermissions for r's identity (Principal/Resource/
-// CatalogID/Condition), scoped to just the given permission subsets. A nil
-// or empty subset leaves that field untouched at the AWS API level. No-op
-// if both subsets are empty.
-func (rm *resourceManager) grantSubset(
-	ctx context.Context,
-	r *resource,
-	permissions []*string,
-	permissionsWithGrantOption []*string,
-) error {
-	if len(permissions) == 0 && len(permissionsWithGrantOption) == 0 {
-		return nil
+// matchAndApplyPermissions finds the ListPermissions row for principalARN
+// and overwrites ko's Principal/Resource/Condition/Permissions/
+// PermissionsWithGrantOption from it. Returns whether a match was found.
+//
+// Must overwrite Principal/Resource/Condition too, not just the permission
+// lists: the generated code before this hook point copies those fields from
+// the FIRST row of an unordered, Resource-only-filtered response (which can
+// include other principals on the same resource) - left uncorrected,
+// ackcompare sees a false identity change and Update takes the
+// revoke+regrant path against the wrong principal (reproduced live).
+//
+// Wrapping this in an rm method (instead of calling pkg/permission from the
+// hook template directly) sidesteps a goimports limitation: build-controller.sh's
+// post-generation goimports pass runs from the wrong module's CWD and can't
+// add a new local-package import to generated sdk.go. This file is
+// hand-written and already imports pkg/permission, so no new import is
+// needed in generated code.
+func (rm *resourceManager) matchAndApplyPermissions(
+	ko *svcapitypes.DatabasePermission,
+	principal *svcapitypes.DataLakePrincipal,
+	resourceSpec *svcapitypes.Resource,
+	perms []svcsdktypes.PrincipalResourcePermissions,
+	principalARN string,
+) bool {
+	matched, ok := permission.MatchPrincipal(perms, principalARN)
+	if !ok {
+		return false
 	}
-	sub := r.ko.DeepCopy()
-	sub.Spec.Permissions = permissions
-	sub.Spec.PermissionsWithGrantOption = permissionsWithGrantOption
-	input, err := rm.newCreateRequestPayload(ctx, &resource{sub})
-	if err != nil {
-		return err
+	ko.Spec.Principal = principal.DeepCopy()
+	ko.Spec.Resource = resourceSpec.DeepCopy()
+	if matched.Condition != nil {
+		ko.Spec.Condition = &svcapitypes.Condition{Expression: matched.Condition.Expression}
+	} else {
+		ko.Spec.Condition = nil
 	}
-	_, err = rm.sdkapi.GrantPermissions(ctx, input)
-	rm.metrics.RecordAPICall("UPDATE", "GrantPermissions", err)
-	return err
+	ko.Spec.Permissions = permission.SDKPermissionsToStrings(matched.Permissions)
+	ko.Spec.PermissionsWithGrantOption = permission.SDKPermissionsToStrings(matched.PermissionsWithGrantOption)
+	return true
 }
 
-// revokeSubset calls RevokePermissions for r's identity (Principal/Resource/
-// CatalogID/Condition), scoped to just the given permission subsets. A nil
-// or empty subset leaves that field untouched at the AWS API level. No-op
-// if both subsets are empty.
-func (rm *resourceManager) revokeSubset(
-	ctx context.Context,
-	r *resource,
-	permissions []*string,
-	permissionsWithGrantOption []*string,
-) error {
-	if len(permissions) == 0 && len(permissionsWithGrantOption) == 0 {
-		return nil
-	}
-	sub := r.ko.DeepCopy()
-	sub.Spec.Permissions = permissions
-	sub.Spec.PermissionsWithGrantOption = permissionsWithGrantOption
-	input, err := rm.newDeleteRequestPayload(&resource{sub})
-	if err != nil {
-		return err
-	}
-	_, err = rm.sdkapi.RevokePermissions(ctx, input)
-	rm.metrics.RecordAPICall("UPDATE", "RevokePermissions", err)
-	return err
+// setSelfHealAdvisory sets the shared self-heal Advisory condition on ko.
+// Wrapper method for the same goimports reason as matchAndApplyPermissions.
+func (rm *resourceManager) setSelfHealAdvisory(ko *svcapitypes.DatabasePermission) {
+	permission.SetSelfHealAdvisory(&resource{ko}, "DatabasePermission")
 }
 
-// permissionsDiff compares two []*string permission lists as sets (order
-// insensitive) and returns the entries present in desired but not latest
-// (added) and present in latest but not desired (removed).
-func permissionsDiff(desired, latest []*string) (added, removed []*string) {
-	desiredSet := make(map[string]struct{}, len(desired))
-	for _, p := range desired {
-		if p != nil {
-			desiredSet[*p] = struct{}{}
+// grantTargetFor builds a permission.GrantTarget from a DatabasePermission's Spec.
+func grantTargetFor(ko *svcapitypes.DatabasePermission) permission.GrantTarget {
+	target := permission.GrantTarget{
+		CatalogID: ko.Spec.CatalogID,
+	}
+	if ko.Spec.Condition != nil {
+		target.Condition = &svcsdktypes.Condition{
+			Expression: ko.Spec.Condition.Expression,
 		}
 	}
-	latestSet := make(map[string]struct{}, len(latest))
-	for _, p := range latest {
-		if p != nil {
-			latestSet[*p] = struct{}{}
+	if ko.Spec.Principal != nil {
+		target.Principal = svcsdktypes.DataLakePrincipal{
+			DataLakePrincipalIdentifier: ko.Spec.Principal.DataLakePrincipalIdentifier,
 		}
 	}
-	for _, p := range desired {
-		if p == nil {
-			continue
-		}
-		if _, ok := latestSet[*p]; !ok {
-			added = append(added, p)
-		}
-	}
-	for _, p := range latest {
-		if p == nil {
-			continue
-		}
-		if _, ok := desiredSet[*p]; !ok {
-			removed = append(removed, p)
+	if ko.Spec.Resource != nil && ko.Spec.Resource.Database != nil {
+		target.Resource = svcsdktypes.Resource{
+			Database: &svcsdktypes.DatabaseResource{
+				CatalogId: ko.Spec.Resource.Database.CatalogID,
+				Name:      ko.Spec.Resource.Database.Name,
+			},
 		}
 	}
-	return added, removed
+	return target
 }

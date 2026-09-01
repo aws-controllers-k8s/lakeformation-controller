@@ -74,17 +74,11 @@ func (rm *resourceManager) sdkFind(
 	if err != nil {
 		return nil, err
 	}
-	// Intentionally NOT setting input.Principal here. Per the ListPermissions
-	// API docs: "If both Principal and Resource parameters are provided, the
-	// response returns effective permissions rather than the explicitly granted
-	// permissions." Effective permissions fold in anything implied by the
-	// account's Lake Formation catalog settings - notably the default hybrid
-	// access mode grant of ALL to the IAM_ALLOWED_PRINCIPALS pseudo-group, which
-	// then shows up as if it were an explicit grant for whatever principal is
-	// named in the request, even one that was never explicitly granted
-	// anything. Filtering by Resource only returns just the real, explicitly
-	// granted rows; sdk_read_many_post_set_output does the Principal match
-	// itself against that real data.
+	// Intentionally NOT setting input.Principal: setting both Principal and
+	// Resource switches ListPermissions to "effective permissions" mode, which
+	// folds in implicit grants (e.g. hybrid access mode's default ALL to
+	// IAM_ALLOWED_PRINCIPALS) as if explicitly granted. Resource-only filtering
+	// returns real grants; sdk_read_many_post_set_output matches Principal itself.
 	if r.ko.Spec.Resource != nil && r.ko.Spec.Resource.Database != nil {
 		input.Resource = &svcsdktypes.Resource{
 			Database: &svcsdktypes.DatabaseResource{
@@ -175,44 +169,13 @@ func (rm *resourceManager) sdkFind(
 	}
 
 	rm.setStatusDefaults(ko)
-	// The ListPermissions API can return more than the single grant this CR
-	// manages: entries derived from LF-Tag policies or RAM resource shares show
-	// up as "effective" permissions alongside explicitly granted ones, and the
-	// server-side Resource/Principal filter above narrows but does not
-	// guarantee an exact match. Re-scan the raw response here rather than
-	// trusting whichever entry the generated code above happened to pick first.
-	matched := false
-	for _, elem := range resp.PrincipalResourcePermissions {
-		if elem.AdditionalDetails != nil && len(elem.AdditionalDetails.ResourceShare) > 0 {
-			// Share-derived, not a grant this CR made.
-			continue
-		}
-		if elem.Principal == nil || elem.Principal.DataLakePrincipalIdentifier == nil {
-			continue
-		}
-		if r.ko.Spec.Principal == nil || r.ko.Spec.Principal.DataLakePrincipalIdentifier == nil {
-			continue
-		}
-		if *elem.Principal.DataLakePrincipalIdentifier != *r.ko.Spec.Principal.DataLakePrincipalIdentifier {
-			continue
-		}
-
-		permissions := make([]*string, 0, len(elem.Permissions))
-		for _, p := range elem.Permissions {
-			permissions = append(permissions, aws.String(string(p)))
-		}
-		ko.Spec.Permissions = permissions
-
-		permissionsWithGrantOption := make([]*string, 0, len(elem.PermissionsWithGrantOption))
-		for _, p := range elem.PermissionsWithGrantOption {
-			permissionsWithGrantOption = append(permissionsWithGrantOption, aws.String(string(p)))
-		}
-		ko.Spec.PermissionsWithGrantOption = permissionsWithGrantOption
-
-		matched = true
-		break
+	// Resource-only filter above can return rows for other principals/shares;
+	// match the right one here instead of trusting the first row.
+	principalARN := ""
+	if r.ko.Spec.Principal != nil && r.ko.Spec.Principal.DataLakePrincipalIdentifier != nil {
+		principalARN = *r.ko.Spec.Principal.DataLakePrincipalIdentifier
 	}
-	if !matched {
+	if !rm.matchAndApplyPermissions(ko, r.ko.Spec.Principal, r.ko.Spec.Resource, resp.PrincipalResourcePermissions, principalARN) {
 		return nil, ackerr.NotFound
 	}
 
@@ -271,21 +234,10 @@ func (rm *resourceManager) sdkCreate(
 	ko := desired.ko.DeepCopy()
 
 	rm.setStatusDefaults(ko)
-	// A Create call for a DatabasePermission that already has ACK resource
-	// metadata in its Status is not a first-time grant: it means the CR
-	// previously synced successfully but sdkFind just returned NotFound, so the
-	// generic reconciler is self-healing by recreating it. The grant may have
-	// vanished because another DatabasePermission CR (or something outside ACK)
-	// revoked it - surface that possibility as an advisory condition rather than
-	// silently recreating it, since there's no cluster-wide guarantee today that
-	// two DatabasePermission CRs can't target the same principal/database.
+	// ACKResourceMetadata already set means this Create is a self-heal
+	// (sdkFind returned NotFound for a previously-synced CR), not a first grant.
 	if desired.ko.Status.ACKResourceMetadata != nil {
-		ackcondition.SetAdvisory(
-			&resource{ko},
-			corev1.ConditionTrue,
-			aws.String("This grant was not found in AWS and has been recreated. If more than one DatabasePermission resource targets the same principal and database, one of them may be revoking permissions the other manages."),
-			aws.String("SELF_HEALED_RECREATE"),
-		)
+		rm.setSelfHealAdvisory(ko)
 	}
 
 	return &resource{ko}, nil
